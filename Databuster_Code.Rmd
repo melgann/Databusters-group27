@@ -9,12 +9,56 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+```{r}
+library(readr)
+library(readxl)
+library(stringr)
+library(lubridate)
+library(tidyverse)
+library(dynlm)
+library(vars)
+library(tseries)
+library(forecast)
+```
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+## Exploring the data
 
+```{r explore, echo=FALSE}
+vars = read_csv("../data/Variable Description.csv", show_col_types = FALSE)
+df = read_csv("../data/Quarterly Data.csv", show_col_types = FALSE)
+```
+
+Selecting indicators that we want to use only
+```{r}
+df_select <- df[-(1:2),] 
+df_select <- df_select %>% 
+  select(sasdate, GDPC1, UNRATE, PCECC96) %>%
+  mutate(sasdate = dmy(sasdate))
+
+```
+
+
+Load and prepare data
+```{r}
+start_year <- year(min(df_select$sasdate, na.rm = TRUE)) 
+start_quarter <- quarter(min(df_select$sasdate, na.rm = TRUE))
+ts_data <- ts(df_select[, c("GDPC1", "UNRATE", "PCECC96")], start = c(start_year,start_quarter), frequency = 4)
+```
+
+
+Check for stationary 
+-if p-value < 0.05, the series is staionary
+-if not, apply differencing
+```{r}
+adf.test(ts_data[,"GDPC1"])          #not stationary
+adf.test(ts_data[,"UNRATE"])         #stationary
+adf.test(ts_data[,"PCECC96"])        #not stationary
+
+# apply differencing on GDP growth (GDPC1) and consumer spending (PCECC96)
+ts_data <- diff(ts_data)
+
+<<<<<<< HEAD
 ```{r cars}
 library(tidyverse)
 library(lubridate)
@@ -24,12 +68,18 @@ library(forecast)
 library(dynlm)
 library(tseries)
 library(dplyr)
+=======
+>>>>>>> 65ee6ce999d0d80493b6523ade454f85c1378e6c
 ```
 
-## Including Plots
 
-You can also embed plots, for example:
+Determine the Optimal lag Order
+Based on the graph, we could try to fit an AR model using p = 2 or p = 3
+```{r}
+acf(ts_data)   # Identifies potential MA terms
+pacf(ts_data)  # Identifies AR terms
 
+<<<<<<< HEAD
 ```{r pressure, echo=FALSE}
 df <- read.csv("Quarterly Data.csv")
 ```
@@ -76,6 +126,30 @@ auto.arima(df_unemployment_and_gdp_$GDPC1)
 ```{r}
 library(dplyr)
 library(rlang)
+=======
+#i got this from chatgpt
+VARselect(ts_data, lag.max = 10, type = "const")$selection
+
+```
+
+Fitting the VAR model with no moving average terms 
+```{r}
+# p = 2
+var_model <- VAR(ts_data, p = 2, type = "const") 
+summary(var_model)
+
+# p = 3
+var_model2 <- VAR(ts_data, p = 3, type = "const") 
+summary(var_model2)
+
+# p = 4
+var_model3 <- VAR(ts_data, p = 4, type = "const") 
+summary(var_model3)
+
+# p = 5
+var_model4 <- VAR(ts_data, p = 5, type = "const") 
+summary(var_model4)
+>>>>>>> 65ee6ce999d0d80493b6523ade454f85c1378e6c
 
 # Define the maximum number of lags
 p <- 10  # Or whatever value you want for the number of lags
@@ -125,6 +199,7 @@ for (h in 1:max_lags) {
 
 
 ```{r}
+<<<<<<< HEAD
 df_unemployment_and_consumption <- df__[, c("GDPC1", "sasdate","UNRATE", "PCECC96")] %>%
   mutate(UNRATE_1 = lag(UNRATE,3)) 
 
@@ -305,3 +380,12 @@ print(top_5_correlations)
 
 
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+=======
+forecast_values <- predict(var_model, n.ahead = 4)  # Forecast next 4 periods
+plot(forecast_values)
+```
+
+
+
+
+>>>>>>> 65ee6ce999d0d80493b6523ade454f85c1378e6c
