@@ -9,21 +9,95 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r}
+library(readr)
+library(readxl)
+library(stringr)
+library(lubridate)
+library(tidyverse)
+library(dynlm)
+library(vars)
+library(tseries)
+library(forecast)
+```
+
 
 ## Exploring the data
 
-
 ```{r explore, echo=FALSE}
-vars = read.csv("Variable Description.csv")
-df_monthly = read.csv("Monthly Data.csv")
+vars = read_csv("../data/Variable Description.csv", show_col_types = FALSE)
+df = read_csv("../data/Quarterly Data.csv", show_col_types = FALSE)
+```
 
+Selecting indicators that we want to use only
+```{r}
+df_select <- df[-(1:2),] 
+df_select <- df_select %>% 
+  select(sasdate, GDPC1, UNRATE, PCECC96) %>%
+  mutate(sasdate = dmy(sasdate))
+
+```
+
+
+Load and prepare data
+```{r}
+start_year <- year(min(df_select$sasdate, na.rm = TRUE)) 
+start_quarter <- quarter(min(df_select$sasdate, na.rm = TRUE))
+ts_data <- ts(df_select[, c("GDPC1", "UNRATE", "PCECC96")], start = c(start_year,start_quarter), frequency = 4)
+```
+
+
+Check for stationary 
+-if p-value < 0.05, the series is staionary
+-if not, apply differencing
+```{r}
+adf.test(ts_data[,"GDPC1"])          #not stationary
+adf.test(ts_data[,"UNRATE"])         #stationary
+adf.test(ts_data[,"PCECC96"])        #not stationary
+
+# apply differencing on GDP growth (GDPC1) and consumer spending (PCECC96)
+ts_data <- diff(ts_data)
+
+```
+
+
+Determine the Optimal lag Order
+Based on the graph, we could try to fit an AR model using p = 2 or p = 3
+```{r}
+acf(ts_data)   # Identifies potential MA terms
+pacf(ts_data)  # Identifies AR terms
+
+#i got this from chatgpt
+VARselect(ts_data, lag.max = 10, type = "const")$selection
+
+```
+
+Fitting the VAR model with no moving average terms 
+```{r}
+# p = 2
+var_model <- VAR(ts_data, p = 2, type = "const") 
+summary(var_model)
+
+# p = 3
+var_model2 <- VAR(ts_data, p = 3, type = "const") 
+summary(var_model2)
+
+# p = 4
+var_model3 <- VAR(ts_data, p = 4, type = "const") 
+summary(var_model3)
+
+# p = 5
+var_model4 <- VAR(ts_data, p = 5, type = "const") 
+summary(var_model4)
 
 ```
 
 
 ```{r}
-##Help
+forecast_values <- predict(var_model, n.ahead = 4)  # Forecast next 4 periods
+plot(forecast_values)
 ```
 
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
