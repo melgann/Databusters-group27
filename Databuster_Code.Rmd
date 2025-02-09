@@ -15,6 +15,7 @@ library(readxl)
 library(stringr)
 library(lubridate)
 library(tidyverse)
+library(dplyr)
 library(dynlm)
 library(vars)
 library(tseries)
@@ -25,15 +26,16 @@ library(forecast)
 ## Exploring the data
 
 ```{r explore, echo=FALSE}
-vars = read_csv("../data/Variable Description.csv", show_col_types = FALSE)
-df = read_csv("../data/Quarterly Data.csv", show_col_types = FALSE)
+vars = read_csv("Variable Description.csv", show_col_types = FALSE)
+df = read_csv("Quarterly Data.csv", show_col_types = FALSE)
 ```
+
 
 Selecting indicators that we want to use only
 ```{r}
 df_select <- df[-(1:2),] 
 df_select <- df_select %>% 
-  select(sasdate, GDPC1, UNRATE, PCECC96) %>%
+  dplyr:: select(sasdate, GDPC1, UNRATE, PCECC96) %>%
   mutate(sasdate = dmy(sasdate))
 
 ```
@@ -58,18 +60,6 @@ adf.test(ts_data[,"PCECC96"])        #not stationary
 # apply differencing on GDP growth (GDPC1) and consumer spending (PCECC96)
 ts_data <- diff(ts_data)
 
-<<<<<<< HEAD
-```{r cars}
-library(tidyverse)
-library(lubridate)
-library(tsibble)
-library(fable)
-library(forecast)
-library(dynlm)
-library(tseries)
-library(dplyr)
-=======
->>>>>>> 65ee6ce999d0d80493b6523ade454f85c1378e6c
 ```
 
 
@@ -78,10 +68,6 @@ Based on the graph, we could try to fit an AR model using p = 2 or p = 3
 ```{r}
 acf(ts_data)   # Identifies potential MA terms
 pacf(ts_data)  # Identifies AR terms
-
-<<<<<<< HEAD
-```{r pressure, echo=FALSE}
-df <- read.csv("Quarterly Data.csv")
 ```
 
 
@@ -93,299 +79,197 @@ df_ <- df %>%
 
 
 ```{r}
-#df__<- df_[, -which(names(df_) == "sasdate")] %>%
-  #scale()  # Scale all columns except sasdate
-
-# Convert the scaled data back to a dataframe
-#df__ <- as.data.frame(df__)
-
-# Add the sasdate column back
-df__ <-df_ %>%
-  mutate(sasdate = as.Date(mdy(sasdate))) %>%
-  arrange(desc(sasdate))
-
-```
-
-
-```{r}
-#df__$UNRATE
-df_unemployment_and_gdp <- df__[, c("GDPC1", "sasdate","UNRATE")]
-#adf.test(df_$GDPC1)
-```
-
-
-```{r}
-df_unemployment_and_gdp_ <- df_unemployment_and_gdp %>%
-  arrange(desc(sasdate))
-
-
-auto.arima(df_unemployment_and_gdp_$GDPC1)
-```
-
-
-```{r}
 library(dplyr)
 library(rlang)
-=======
-#i got this from chatgpt
-VARselect(ts_data, lag.max = 10, type = "const")$selection
-
 ```
 
-Fitting the VAR model with no moving average terms 
+Fitting the ADL model with different p 
 ```{r}
-# p = 2
-var_model <- VAR(ts_data, p = 2, type = "const") 
-summary(var_model)
+# Fit different ADL models with varying lag lengths
+#p = 3
+model_adl_3 <- dynlm(GDPC1 ~ L(GDPC1, 1) + L(GDPC1, 2) + L(GDPC1, 3) + 
+                      L(UNRATE, 1) + L(PCECC96, 1), data = ts_data)
+#p = 4
+model_adl_4 <- dynlm(GDPC1 ~ L(GDPC1, 1) + L(GDPC1, 2) + L(GDPC1, 3) + L(GDPC1, 4) +
+                      L(UNRATE, 1) + L(PCECC96, 1), data = ts_data)
+#p = 5
+model_adl_5 <- dynlm(GDPC1 ~ L(GDPC1, 1) + L(GDPC1, 2) + L(GDPC1, 3) + L(GDPC1, 4) + L(GDPC1, 5) +
+                      L(UNRATE, 1) + L(PCECC96, 1), data = ts_data)
+#p = 7
+model_adl_7 <- dynlm(GDPC1 ~ L(GDPC1, 1) + L(GDPC1, 2) + L(GDPC1, 3) + L(GDPC1, 4) + L(GDPC1, 5) + L(GDPC1, 6) + L(GDPC1, 7) + L(UNRATE, 1) + L(PCECC96, 1), data = ts_data)
 
-# p = 3
-var_model2 <- VAR(ts_data, p = 3, type = "const") 
-summary(var_model2)
-
-# p = 4
-var_model3 <- VAR(ts_data, p = 4, type = "const") 
-summary(var_model3)
-
-# p = 5
-var_model4 <- VAR(ts_data, p = 5, type = "const") 
-summary(var_model4)
->>>>>>> 65ee6ce999d0d80493b6523ade454f85c1378e6c
-
-# Define the maximum number of lags
-p <- 10  # Or whatever value you want for the number of lags
+# p = 10
+model_adl_10 <- dynlm(GDPC1 ~ L(GDPC1, 1) + L(GDPC1, 2) + L(GDPC1, 3) + L(GDPC1, 4) + L(GDPC1, 5) + L(GDPC1, 6) + L(GDPC1, 7) + L(GDPC1, 8) +L(GDPC1, 9) +L(GDPC1, 10) + L(UNRATE, 1) + L(UNRATE, 2), data = ts_data)
 
 
-# Loop through different lag values for UNRATE and create the columns
-for (g in 1:p) {
-  col_name_unrate <- paste0("UNRATE_", g)  # Generate column name dynamically
-  
-  # Add new column with lagged values for UNRATE
-  df_unemployment_and_gdp_ <- df_unemployment_and_gdp_ %>%
-    mutate(!!col_name_unrate := lag(UNRATE, g))
-}
 
-# Remove any rows with NAs resulting from lagging
-df_unemployment_and_gdp_ <- na.omit(df_unemployment_and_gdp_)
-
-# Print the updated dataframe with the new columns
-head(df_unemployment_and_gdp_)
-
-```
-
-
-```{r}
-
-max_lags = 10
-aic_values = list()
-
-# Loop over the lag values from 1 to max_lags
-for (h in 1:max_lags) {
-  # Fit ARIMAX model with p lagged values of UNRATE
-  model_arimax_lags <- auto.arima(df_unemployment_and_gdp_$GDPC1, 
-                                  xreg = as.matrix(df_unemployment_and_gdp_[, grep(paste0("^UNRATE_[1:", h, "]$"), colnames(df_unemployment_and_gdp_))]))
-  
-  aic_values[[h]] <- AIC(model_arimax_lags)  # Save AIC as a scalar in the list
-  
-  # Print the AIC for each iteration
-  cat("AIC for model with", h, "lagged values of UNRATE:", aic_values[[h]], "\n")  # Use [[ ]] to access scalar value
-}
-
-# Display the final AIC values for each lag combination
-# aic_values
-
-#BEST SEEMS TO BE 3 
 ```
 
 
 
 ```{r}
-<<<<<<< HEAD
-df_unemployment_and_consumption <- df__[, c("GDPC1", "sasdate","UNRATE", "PCECC96")] %>%
-  mutate(UNRATE_1 = lag(UNRATE,3)) 
 
-```
-
-
-```{r}
-p <- 10  # Or whatever value you want for the number of lags
-
-# Initialize df_unemployment_and_gdp_ as the original dataframe
-
-# Loop through different lag values for UNRATE and create the columns
-for (g in 1:p) {
-  col_name_unrate <- paste0("PCECC96_", g)  # Generate column name dynamically
-  
-  # Add new column with lagged values for UNRATE
-  df_unemployment_and_consumption <- df_unemployment_and_consumption %>%
-    mutate(!!col_name_unrate := lag(PCECC96, g))
-}
-
-# Remove any rows with NAs resulting from lagging
-df_unemployment_and_consumption <- na.omit(df_unemployment_and_consumption)
-
-# Print the updated dataframe with the new columns
-head(df_unemployment_and_consumption)
-
-```
-```{r}
-max_lags = 10
-aic_values = list()
-
-# Loop over the lag values from 1 to max_lags
-for (h in 1:max_lags) {
-  # Fit ARIMAX model with p lagged values of UNRATE
-  reg_cons = df_unemployment_and_consumption[, grep(paste0("^PCECC96_[1:", h, "]$"), colnames(df_unemployment_and_consumption))]
-  #print(reg_cons)
-  reg_cons_matrix <- as.matrix(reg_cons)
-  
-  # Combine the lagged predictors (PCECC96 and UNRATE_1) into a numeric matrix
-  total_reg <- cbind(reg_cons_matrix, as.numeric(df_unemployment_and_consumption$UNRATE_1))
-  model_arimax_lags <- auto.arima(df_unemployment_and_consumption$GDPC1, 
-                                  xreg = total_reg)
-  
-  aic_values[[h]] <- AIC(model_arimax_lags)  # Save AIC as a scalar in the list
-  
-  # Print the AIC for each iteration
-  cat("AIC for model with", h, "lagged values of PCECC:", aic_values[[h]], "\n")  # Use [[ ]] to access scalar value
-}
-
-# Display the final AIC values for each lag combination
-aic_values
-
-
-#Best lag seems to  be 1
-```
-```{r}
-df_unemployment_and_consumption_yield <- df__ %>%
-  select("GDPC1", "sasdate","UNRATE", "PCECC96", "S.P.div.yield") %>%
-  mutate(UNRATE_1 = lag(UNRATE,3)) %>%
-  mutate(PCECC96_2 = lag(PCECC96,1)) %>%
-  arrange(desc(sasdate)) 
-
-```
-
-```{r}
-p <- 10  # Or whatever value you want for the number of lags
-
-# Initialize df_unemployment_and_gdp_ as the original dataframe
-df_unemployment_and_consumption_yield <- df_unemployment_and_consumption_yield %>%
-  arrange(desc(sasdate))
-
-# Loop through different lag values for UNRATE and create the columns
-for (g in 1:p) {
-  col_name_unrate <- paste0("yield", g)  # Generate column name dynamically
-  
-  # Add new column with lagged values for UNRATE
-  df_unemployment_and_consumption_yield <- df_unemployment_and_consumption_yield %>%
-    mutate(!!col_name_unrate := lag(S.P.div.yield, g))
-}
-
-# Remove any rows with NAs resulting from lagging
-df_unemployment_and_consumption_yield <- na.omit(df_unemployment_and_consumption_yield)
-
-# Print the updated dataframe with the new columns
-head(df_unemployment_and_consumption_yield)
-```
-
-
-```{r}
-max_lags = 10
-aic_values = list()
-
-# Loop over the lag values from 1 to max_lags
-for (h in 1:max_lags) {
-  # Fit ARIMAX model with p lagged values of UNRATE
-  reg_cons = df_unemployment_and_consumption_yield[, grep(paste0("^yield[1:", h, "]$"), colnames(df_unemployment_and_consumption))]
-  #print(reg_cons)
-  reg_cons_matrix <- as.matrix(reg_cons)
-  
-  # Combine the lagged predictors (PCECC96 and UNRATE_1) into a numeric matrix
-  total_reg <- cbind(reg_cons_matrix, as.numeric(df_unemployment_and_consumption$UNRATE_1), as.numeric(df_unemployment_and_consumption_yield$PCECC96_2))
-  model_arimax_lags <- auto.arima(df_unemployment_and_consumption_yield$GDPC1, 
-                                  xreg = total_reg)
-  
-  aic_values[[h]] <- AIC(model_arimax_lags)  # Save AIC as a scalar in the list
-  
-  # Print the AIC for each iteration
-  cat("AIC for model with", h, "lagged values of UNRATE:", aic_values[[h]], "\n")  # Use [[ ]] to access scalar value
-}
-
-# Display the final AIC values for each lag combination
-aic_values
-
-
-#Best lag seems to  be 2 
-```
-
-
-
-
-```{r}
-
-
-
-# Make sure to load lubridate
-library(lubridate)
-
-# Plot with ggplot2 using mdy() for date limits
-ggplot(df__, aes(x = sasdate, y = GDPC1)) +
-  geom_line(color = "blue") +
-  geom_point(color = "red") +
-  ggtitle("GDP Over the Years") +
-  xlab("Date") +
-  ylab("GDPC1") +
-  xlim(as.Date(c('9/1/1959', '9/1/2023'), format="%m/%d/%Y"))
-
-```
-
-```{r}
-
-library(ggplot2)
-
-# Compute the correlation matrix
-cor_matrix <- cor(df__[, c("GDPC1", "UNRATE", "PCECC96")], use = "complete.obs")
-print(cor_matrix)
-# Melt the correlation matrix
-library(reshape2)
-cor_melted <- melt(cor_matrix)
-
-# Plot the correlation heatmap
-ggplot(cor_melted, aes(Var1, Var2, fill = value)) + 
-  geom_tile() +
-  scale_fill_gradient2(midpoint = 0, low = "blue", high = "red", mid = "white") +
-  theme_minimal() +
-  xlab("") + ylab("") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  ggtitle("Correlation Heatmap")
-
-```
-```{r}
-
-numeric_cols <- df__[, sapply(df__, is.numeric)]
-
-# Calculate correlations of all variables with GDPC1
-
-
-correlations <- sapply(numeric_cols[, -which(names(numeric_cols) == "GDPC1")], function(x) cor(x, df__$GDPC1, use = "complete.obs"))
-
-# Sort the correlations in decreasing order and get the top 5
-top_5_correlations <- sort(correlations, decreasing = FALSE)[1:5]
-
-# Print the top 5 variables with highest correlation with GDPC1
-print(top_5_correlations)
-
-```
-
-
-
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
-=======
 forecast_values <- predict(var_model, n.ahead = 4)  # Forecast next 4 periods
 plot(forecast_values)
+
+# Compare models
+AIC(model_adl_3, model_adl_4, model_adl_5, model_adl_7)
+BIC(model_adl_3, model_adl_4, model_adl_5, model_adl_7)
+
+# p = 7 gives the lowest AIC and BIC
+
+```
+
+Method 2?
+```{r}
+p_values <- 1:10
+
+# Create an empty list to store AIC values
+aic_values <- numeric(length(p_values))
+
+# Loop over different values of p
+for (p in p_values) {
+  # Construct the formula dynamically
+  formula_str <- paste0("GDPC1 ~ ", 
+                        paste0("L(GDPC1, ", 1:p, ")", collapse = " + "))  
+  
+  # Fit the model
+  model <- dynlm(as.formula(formula_str), data = ts_data)
+  
+  # Store AIC value
+  aic_values[p] <- AIC(model)
+}
+
+# Create a data frame to display AIC values
+aic_results <- data.frame(p = p_values, AIC = aic_values)
+
+# Print the AIC values for comparison
+print(aic_results)
+
+
+```
+
+Choosing UNRATE
+number of lags: 2
+```{r}
+# Define the range of lags for UNRATE
+unrate_lags <- 1:10  
+
+# Create an empty list to store AIC values
+aic_values <- numeric(length(unrate_lags))
+
+# Loop over different lag values for UNRATE
+for (lag in unrate_lags) {
+  # Construct the formula dynamically
+  formula_str <- paste0("GDPC1 ~ ", 
+                        paste0("L(GDPC1, ", 1:10, ")", collapse = " + "),  # Fixed lags for GDPC1
+                        " + ", 
+                        paste0("L(UNRATE, ", 1:lag, ")", collapse = " + "))  # Varying lags for UNRATE
+  model <- dynlm(as.formula(formula_str), data = ts_data)
+  aic_values[lag] <- AIC(model)
+}
+
+# Create a data frame to display AIC values
+aic_results <- data.frame(UNRATE_Lags = unrate_lags, AIC = aic_values)
+
+# Print the AIC values for comparison
+print(aic_results) 
+
+#Plot a graph to see which lag will give the lowest AIC
+plot(aic_results$UNRATE_Lags, aic_results$AIC, type="b", pch=19, col="blue",
+     xlab="Number of Lags for UNRATE", ylab="AIC", main="AIC for Different UNRATE Lags")
+
+
+```
+
+Choosing PCECC96
+number of lags: 5
+```{r}
+# Define the range of lags for PCECC96
+pcecc96_lags <- 1:10  
+
+# Create an empty list to store AIC values
+aic_values <- numeric(length(pcecc96_lags))
+
+# Loop over different lag values for PCECC96
+for (lag in pcecc96_lags) {
+  # Construct the formula dynamically
+  formula_str <- paste0("GDPC1 ~ ", 
+                        paste0("L(GDPC1, ", 1:10, ")", collapse = " + "),  # Fixed lags for GDPC1
+                        " + ", 
+                        paste0("L(UNRATE, ", 1:2, ")", collapse = " + "),  # Fixed lags for UNRATE
+                        " + ", 
+                        paste0("L(PCECC96, ", 1:lag, ")", collapse = " + "))  # Varying lags for PCECC96
+  model <- dynlm(as.formula(formula_str), data = ts_data)
+  aic_values[lag] <- AIC(model)
+}
+
+# Create a data frame to display AIC values
+aic_results <- data.frame(PCECC96_Lags = pcecc96_lags, AIC = aic_values)
+
+# Print the AIC values for comparison
+print(aic_results)
+
+
+plot(aic_results$PCECC96_Lags, aic_results$AIC, type="b", pch=19, col="blue",
+     xlab="Number of Lags for PCECC96", ylab="AIC", main="AIC for Different PCECC96 Lags")
+
+```
+
+Final model
+```{r}
+final_model <- dynlm(GDPC1 ~ L(GDPC1, 1) + L(GDPC1, 2) + L(GDPC1, 3) + L(GDPC1, 4) + L(GDPC1, 5) + L(GDPC1, 6) + L(GDPC1, 7) + L(GDPC1, 8) +L(GDPC1, 9) +L(GDPC1, 10) + L(UNRATE, 1) + L(UNRATE, 2) + L(PCECC96, 1)+ L(PCECC96, 2)+ L(PCECC96, 3)+ L(PCECC96, 4)+ L(PCECC96, 5), data = ts_data)
 ```
 
 
 
 
->>>>>>> 65ee6ce999d0d80493b6523ade454f85c1378e6c
+```{r}
+forecast_values <- predict(final_model, n.ahead = 4)  # Forecast next 4 periods
+print(forecast_values)
+
+
+```
+
+
+```{r}
+data <- ts_data[,2]
+model <- arima(data, order= c(1, 0,0))  # Simpler AR(1) model
+summary(model)
+```
+```{r}
+value_UNRATE <- forecast(model, h=4)
+print(value_UNRATE)
+```
+
+```{r}
+data_ <- ts_data[,3]
+model_ <- auto.arima(data_)  # Simpler AR(1) model
+summary(model_)
+
+value_PEC <- forecast(model_, h=4)
+print(value_PEC)
+
+```
+```{r}
+point_forecasts_pec <- value_PEC$mean
+
+point_forecasts_values <- as.numeric(point_forecasts_pec)
+
+
+point_forecasts_UNRATE <- value_UNRATE$mean
+
+point_forecasts_values_ <- as.numeric(point_forecasts_UNRATE) 
+
+
+new_rows <- cbind(c(0,0,0,0),point_forecasts_values_, point_forecasts_values)
+
+new_data_frame <- rbind(ts_data, new_rows)
+```
+
+
+```{r}
+forecast_values <- predict(final_model, n.ahead = 4, newdata=data.frame(new_data_frame))
+print(forecast_values)
+
+```
