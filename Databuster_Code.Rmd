@@ -7,6 +7,9 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(tidyverse)
+library(tseries)
 ```
 
 
@@ -16,6 +19,42 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r explore, echo=FALSE}
 vars = read.csv("Variable Description.csv")
 df_monthly = read.csv("Monthly Data.csv")
+df_quarterly = read.csv("Quarterly Data.csv")
+
+# cleaning df
+df = df_quarterly %>%
+  slice(-c(1,2)) %>%
+  mutate(sasdate=as.Date(dmy(sasdate))) %>% 
+  mutate(y_ts = ts(df$GDPC1, start = c(1959, 3), frequency = 4), .after=GDPC1) #make gdp time series object
+
+# stationary test
+adf_test <- adf.test(y_ts)
+print(adf_test)
+
+# stationarity transformation (first difference)
+y_ts_diff <- diff(y_ts)
+adf_test_diff <- adf.test(y_ts_diff)
+print(adf_test_diff)
+
+max_p <- 10  # You can adjust this
+
+# finding aic/bic for diff ps
+# storage for AIC and BIC
+aic_values <- numeric(max_p)
+bic_values <- numeric(max_p)
+
+# Loop through different values of p
+for (p in 1:max_p) {
+  model <- arima(y_ts_diff, order = c(p, 0, 0))  # AR(p) model
+  aic_values[p] <- AIC(model)  # Store AIC at index p
+  bic_values[p] <- BIC(model)  # Store BIC at index p
+}
+
+# Find the best p based on AIC and BIC
+best_p_aic <- which.min(aic_values)
+print(paste("Best p based on AIC:", best_p_aic))
+best_p_bic <- which.min(bic_values)
+print(paste("Best p based on BIC:", best_p_bic))
 
 
 ```
