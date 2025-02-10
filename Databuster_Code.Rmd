@@ -20,10 +20,11 @@ library(dynlm)
 library(vars)
 library(tseries)
 library(forecast)
+library(rlang)
 ```
 
 
-## Exploring the data
+# Exploring the data
 
 ```{r explore, echo=FALSE}
 vars = read_csv("Variable Description.csv", show_col_types = FALSE)
@@ -41,7 +42,7 @@ df_select <- df_select %>%
 ```
 
 
-Load and prepare data
+### Load and prepare data
 ```{r}
 start_year <- year(min(df_select$sasdate, na.rm = TRUE)) 
 start_quarter <- quarter(min(df_select$sasdate, na.rm = TRUE))
@@ -49,7 +50,7 @@ ts_data <- ts(df_select[, c("GDPC1", "UNRATE", "PCECC96")], start = c(start_year
 ```
 
 
-Check for stationary 
+### Check for stationary 
 -if p-value < 0.05, the series is staionary
 -if not, apply differencing
 ```{r}
@@ -63,64 +64,8 @@ ts_data <- diff(ts_data)
 ```
 
 
-Determine the Optimal lag Order
-Based on the graph, we could try to fit an AR model using p = 2 or p = 3
-```{r}
-acf(ts_data)   # Identifies potential MA terms
-pacf(ts_data)  # Identifies AR terms
-```
-
-
-```{r}
-df_ <- df %>%
-  slice(-c(1,2))
-
-```
-
-
-```{r}
-library(dplyr)
-library(rlang)
-```
-
-Fitting the ADL model with different p 
-```{r}
-# Fit different ADL models with varying lag lengths
-#p = 3
-model_adl_3 <- dynlm(GDPC1 ~ L(GDPC1, 1) + L(GDPC1, 2) + L(GDPC1, 3) + 
-                      L(UNRATE, 1) + L(PCECC96, 1), data = ts_data)
-#p = 4
-model_adl_4 <- dynlm(GDPC1 ~ L(GDPC1, 1) + L(GDPC1, 2) + L(GDPC1, 3) + L(GDPC1, 4) +
-                      L(UNRATE, 1) + L(PCECC96, 1), data = ts_data)
-#p = 5
-model_adl_5 <- dynlm(GDPC1 ~ L(GDPC1, 1) + L(GDPC1, 2) + L(GDPC1, 3) + L(GDPC1, 4) + L(GDPC1, 5) +
-                      L(UNRATE, 1) + L(PCECC96, 1), data = ts_data)
-#p = 7
-model_adl_7 <- dynlm(GDPC1 ~ L(GDPC1, 1) + L(GDPC1, 2) + L(GDPC1, 3) + L(GDPC1, 4) + L(GDPC1, 5) + L(GDPC1, 6) + L(GDPC1, 7) + L(UNRATE, 1) + L(PCECC96, 1), data = ts_data)
-
-# p = 10
-model_adl_10 <- dynlm(GDPC1 ~ L(GDPC1, 1) + L(GDPC1, 2) + L(GDPC1, 3) + L(GDPC1, 4) + L(GDPC1, 5) + L(GDPC1, 6) + L(GDPC1, 7) + L(GDPC1, 8) +L(GDPC1, 9) +L(GDPC1, 10) + L(UNRATE, 1) + L(UNRATE, 2), data = ts_data)
-
-
-
-```
-
-
-
-```{r}
-
-forecast_values <- predict(var_model, n.ahead = 4)  # Forecast next 4 periods
-plot(forecast_values)
-
-# Compare models
-AIC(model_adl_3, model_adl_4, model_adl_5, model_adl_7)
-BIC(model_adl_3, model_adl_4, model_adl_5, model_adl_7)
-
-# p = 7 gives the lowest AIC and BIC
-
-```
-
-Method 2?
+### Determining optimal lag lengths
+Determining p
 ```{r}
 p_values <- 1:10
 
@@ -132,22 +77,22 @@ for (p in p_values) {
   # Construct the formula dynamically
   formula_str <- paste0("GDPC1 ~ ", 
                         paste0("L(GDPC1, ", 1:p, ")", collapse = " + "))  
-  
-  # Fit the model
   model <- dynlm(as.formula(formula_str), data = ts_data)
-  
-  # Store AIC value
   aic_values[p] <- AIC(model)
 }
 
 # Create a data frame to display AIC values
 aic_results <- data.frame(p = p_values, AIC = aic_values)
 
-# Print the AIC values for comparison
+# Print AIC values for comparison
 print(aic_results)
 
+#Plot a graph to see which lag will give the lowest AIC
+plot(aic_results$p, aic_results$AIC, type="b", pch=19, col="blue",
+     xlab="Number of Lags for GDPC1", ylab="AIC", main="AIC for Different GDPC1 Lags")
 
 ```
+
 
 Choosing UNRATE
 number of lags: 2
@@ -156,7 +101,7 @@ number of lags: 2
 unrate_lags <- 1:10  
 
 # Create an empty list to store AIC values
-aic_values <- numeric(length(unrate_lags))
+aic_values2 <- numeric(length(unrate_lags))
 
 # Loop over different lag values for UNRATE
 for (lag in unrate_lags) {
@@ -166,19 +111,18 @@ for (lag in unrate_lags) {
                         " + ", 
                         paste0("L(UNRATE, ", 1:lag, ")", collapse = " + "))  # Varying lags for UNRATE
   model <- dynlm(as.formula(formula_str), data = ts_data)
-  aic_values[lag] <- AIC(model)
+  aic_values2[lag] <- AIC(model)
 }
 
 # Create a data frame to display AIC values
-aic_results <- data.frame(UNRATE_Lags = unrate_lags, AIC = aic_values)
+aic_results2 <- data.frame(UNRATE_Lags = unrate_lags, AIC = aic_values2)
 
 # Print the AIC values for comparison
-print(aic_results) 
+print(aic_results2) 
 
 #Plot a graph to see which lag will give the lowest AIC
-plot(aic_results$UNRATE_Lags, aic_results$AIC, type="b", pch=19, col="blue",
+plot(aic_results2$UNRATE_Lags, aic_results2$AIC, type="b", pch=19, col="blue",
      xlab="Number of Lags for UNRATE", ylab="AIC", main="AIC for Different UNRATE Lags")
-
 
 ```
 
@@ -189,7 +133,7 @@ number of lags: 5
 pcecc96_lags <- 1:10  
 
 # Create an empty list to store AIC values
-aic_values <- numeric(length(pcecc96_lags))
+aic_values3 <- numeric(length(pcecc96_lags))
 
 # Loop over different lag values for PCECC96
 for (lag in pcecc96_lags) {
@@ -201,74 +145,69 @@ for (lag in pcecc96_lags) {
                         " + ", 
                         paste0("L(PCECC96, ", 1:lag, ")", collapse = " + "))  # Varying lags for PCECC96
   model <- dynlm(as.formula(formula_str), data = ts_data)
-  aic_values[lag] <- AIC(model)
+  aic_values3[lag] <- AIC(model)
 }
 
 # Create a data frame to display AIC values
-aic_results <- data.frame(PCECC96_Lags = pcecc96_lags, AIC = aic_values)
+aic_results3 <- data.frame(PCECC96_Lags = pcecc96_lags, AIC = aic_values3)
 
 # Print the AIC values for comparison
 print(aic_results)
 
-
-plot(aic_results$PCECC96_Lags, aic_results$AIC, type="b", pch=19, col="blue",
+#Plot a graph to see which lag will give the lowest AIC
+plot(aic_results3$PCECC96_Lags, aic_results3$AIC, type="b", pch=19, col="blue",
      xlab="Number of Lags for PCECC96", ylab="AIC", main="AIC for Different PCECC96 Lags")
 
 ```
 
-Final model
+
+### Final model
 ```{r}
 final_model <- dynlm(GDPC1 ~ L(GDPC1, 1) + L(GDPC1, 2) + L(GDPC1, 3) + L(GDPC1, 4) + L(GDPC1, 5) + L(GDPC1, 6) + L(GDPC1, 7) + L(GDPC1, 8) +L(GDPC1, 9) +L(GDPC1, 10) + L(UNRATE, 1) + L(UNRATE, 2) + L(PCECC96, 1)+ L(PCECC96, 2)+ L(PCECC96, 3)+ L(PCECC96, 4)+ L(PCECC96, 5), data = ts_data)
 ```
 
 
-
-
-```{r}
-forecast_values <- predict(final_model, n.ahead = 4)  # Forecast next 4 periods
-print(forecast_values)
-
-
-```
-
-
+Using arima to predict values for UNRATE
 ```{r}
 data <- ts_data[,2]
 model <- arima(data, order= c(1, 0,0))  # Simpler AR(1) model
 summary(model)
-```
-```{r}
+
 value_UNRATE <- forecast(model, h=4)
 print(value_UNRATE)
 ```
 
-```{r}
-data_ <- ts_data[,3]
-model_ <- auto.arima(data_)  # Simpler AR(1) model
-summary(model_)
 
-value_PEC <- forecast(model_, h=4)
+Using arima to predict values for PCECC96
+```{r}
+data2 <- ts_data[,3]
+model2 <- auto.arima(data2)  # Simpler AR(1) model
+summary(model2)
+
+value_PEC <- forecast(model2, h=4)
 print(value_PEC)
 
 ```
+
+
+### Extracting the point forecasts values
 ```{r}
 point_forecasts_pec <- value_PEC$mean
-
 point_forecasts_values <- as.numeric(point_forecasts_pec)
 
-
 point_forecasts_UNRATE <- value_UNRATE$mean
-
 point_forecasts_values_ <- as.numeric(point_forecasts_UNRATE) 
 
-
+# Create a new data frame and add the new point forecast values to ts_data
 new_rows <- cbind(c(0,0,0,0),point_forecasts_values_, point_forecasts_values)
 
 new_data_frame <- rbind(ts_data, new_rows)
 ```
 
 
+# Forecasting
 ```{r}
+#Forecast for 4 periods
 forecast_values <- predict(final_model, n.ahead = 4, newdata=data.frame(new_data_frame))
 print(forecast_values)
 
