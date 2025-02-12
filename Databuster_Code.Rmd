@@ -25,6 +25,8 @@ library(tseries)
 library(forecast)
 library(ggcorrplot)
 library(rlang)
+library(reshape2)
+library(fanplot)
 ```
 
 
@@ -40,7 +42,7 @@ Selecting indicators that we want to use only
 ```{r}
 df_select <- df[-(1:2),] 
 df_select <- df_select %>% 
-  dplyr:: select(sasdate, GDPC1, UNRATE, PCECC96) %>%
+  dplyr:: select(sasdate, GDPC1, UNRATE, PCECC96,CPILFESL) %>%
   mutate(sasdate = dmy(sasdate))
 
 ```
@@ -50,7 +52,7 @@ df_select <- df_select %>%
 ```{r}
 start_year <- year(min(df_select$sasdate, na.rm = TRUE)) 
 start_quarter <- quarter(min(df_select$sasdate, na.rm = TRUE))
-ts_data <- ts(df_select[, c("GDPC1", "UNRATE", "PCECC96")], start = c(start_year,start_quarter), frequency = 4)
+ts_data <- ts(df_select[, c("GDPC1", "UNRATE", "PCECC96", "CPILFESL")], start = c(start_year,start_quarter), frequency = 4)
 ```
 
 
@@ -59,26 +61,33 @@ ts_data <- ts(df_select[, c("GDPC1", "UNRATE", "PCECC96")], start = c(start_year
 ggplot(df_select, aes(x = sasdate, y = GDPC1)) +
   geom_line(color = "blue", size = 1) +
   geom_point(color = "red", size = 2) + 
-  labs(title = "GDP against time", x = "Date", y = "GDPC1") +
+  labs(title = "General GDP Trend", x = "Year", y = "GDPC1") +
   theme_minimal() + 
   scale_x_date(limits = c(as.Date("1980-01-03"), as.Date("2024-01-09"))) 
 
 ```
 
 
-
-
-### Check for stationary 
--if p-value < 0.05, the series is staionary
--if not, apply differencing
 ```{r}
-adf.test(ts_data[,"GDPC1"])          #not stationary
-adf.test(ts_data[,"UNRATE"])         #stationary
-adf.test(ts_data[,"PCECC96"])        #not stationary
+# Correlation matrix calculation excluding the date column
+cor_matrix <- cor(df_select[, -1])  # Exclude the first column (sasdate)
 
-# apply differencing on GDP growth (GDPC1) and consumer spending (PCECC96)
-ts_data <- diff(ts_data)
+# Reshape the correlation matrix for ggplot2
+library(reshape2)
+cor_long <- melt(cor_matrix)
 
+# Set the order of the variables for both x and y axes to match
+cor_long$Var1 <- factor(cor_long$Var1, levels = colnames(cor_matrix))
+cor_long$Var2 <- factor(cor_long$Var2, levels = colnames(cor_matrix))
+
+# Plot the correlation heatmap with consistent variable order
+library(ggplot2)
+ggplot(cor_long, aes(Var1, Var2, fill = value)) +
+  geom_tile() +  # Create tiles
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0) +  # Color gradient
+  theme_minimal() +  # Clean theme
+  labs(title = "Correlation Matrix Heatmap", x = "Variables", y = "Variables") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels
 ```
 <<<<<<< HEAD
 
@@ -183,7 +192,7 @@ for (lag in pcecc96_lags) {
   formula_str <- paste0("GDPC1 ~ ", 
                         paste0("L(GDPC1, ", 1:10, ")", collapse = " + "),  # Fixed lags for GDPC1
                         " + ", 
-                        paste0("L(UNRATE, ", 1:2, ")", collapse = " + "),  # Fixed lags for UNRATE
+                        paste0("L(UNRATE, ", 1:3, ")", collapse = " + "),  # Fixed lags for UNRATE
                         " + ", 
                         paste0("L(PCECC96, ", 1:lag, ")", collapse = " + "))  # Varying lags for PCECC96
   model <- dynlm(as.formula(formula_str), data = train_data)
@@ -194,28 +203,62 @@ for (lag in pcecc96_lags) {
 aic_results3 <- data.frame(PCECC96_Lags = pcecc96_lags, AIC = aic_values3)
 
 # Print the AIC values for comparison
-print(aic_results)
+print(aic_results3)
 
 #Plot a graph to see which lag will give the lowest AIC
 plot(aic_results3$PCECC96_Lags, aic_results3$AIC, type="b", pch=19, col="blue",
      xlab="Number of Lags for PCECC96", ylab="AIC", main="AIC for Different PCECC96 Lags")
 
 ```
+```{r}
+# Define the range of lags for CPILFESL
+CPILFESL_lags <- 1:10  
+
+# Create an empty list to store AIC values
+aic_values4 <- numeric(length(CPILFESL_lags))
+
+# Loop over different lag values for PCECC96
+for (lag in CPILFESL_lags) {
+  # Construct the formula dynamically
+  formula_str <- paste0("GDPC1 ~ ", 
+                        paste0("L(GDPC1, ", 1:10, ")", collapse = " + "),  # Fixed lags for GDPC1
+                        " + ", 
+                        paste0("L(UNRATE, ", 1:3, ")", collapse = " + "),  # Fixed lags for UNRATE
+                        " + ", 
+                        paste0("L(PCECC96, ", 1:4, ")", collapse = " + "), # Fixed lags for PCECC96 
+                        " + ", 
+                        paste0("L(CPILFESL, ", 1:lag, ")", collapse = " + "))  #Varying lags for CPILFESL
+  model <- dynlm(as.formula(formula_str), data = train_data)
+  aic_values4[lag] <- AIC(model)
+}
+
+# Create a data frame to display AIC values
+aic_results4 <- data.frame(CPILFESL_Lags = CPILFESL_lags, AIC = aic_values4)
+
+# Print the AIC values for comparison
+print(aic_results4)
+
+#Plot a graph to see which lag will give the lowest AIC
+plot(CPILFESL_lags, aic_results4$AIC, type="b", pch=19, col="blue",
+     xlab="Number of Lags for CPILFESL_lags", ylab="AIC", main="AIC for Different CPILFESL Lags")
+
+```
+
 
 
 ### Final model
 ```{r}
-final_model <- dynlm(GDPC1 ~ L(GDPC1, 1) + L(GDPC1, 2) + L(GDPC1, 3) + L(GDPC1, 4) + L(GDPC1, 5) + L(GDPC1, 6) + L(GDPC1, 7) + L(GDPC1, 8) +L(GDPC1, 9) +L(GDPC1, 10) + L(UNRATE, 1) + L(UNRATE, 2) + L(PCECC96, 1)+ L(PCECC96, 2)+ L(PCECC96, 3), data = train_data)
+final_model <- dynlm(GDPC1 ~ L(GDPC1, 1) + L(GDPC1, 2) + L(GDPC1, 3) + L(GDPC1, 4) + L(GDPC1, 5) + L(GDPC1, 6) + L(GDPC1, 7) + L(GDPC1, 8) +L(GDPC1, 9) +L(GDPC1, 10) + L(UNRATE, 1) + L(UNRATE, 2) +  L(UNRATE, 3) + L(PCECC96, 1)+ L(PCECC96, 2)+ L(PCECC96, 3) + L(PCECC96, 3) + L(CPILFESL,1), data = train_data)
 ```
 
 
 Using arima to predict values for UNRATE
 ```{r}
 data <- ts_data[,2]
-model <- arima(data, order= c(1, 0,0))  # Simpler AR(1) model
+model <- auto.arima(data)  # Simpler AR(1) model
 summary(model)
 
-value_UNRATE <- forecast(model, h=4)
+value_UNRATE <- forecast(model, h=5)
 print(value_UNRATE)
 ```
 
@@ -226,10 +269,21 @@ data2 <- ts_data[,3]
 model2 <- auto.arima(data2)  # Simpler AR(1) model
 summary(model2)
 
-value_PEC <- forecast(model2, h=4)
+value_PEC <- forecast(model2, h=5)
 print(value_PEC)
 
 ```
+
+```{r}
+data3 <- ts_data[,4]
+model3 <- auto.arima(data3)  # Simpler AR(1) model
+summary(model3)
+
+value_CPEIFL <- forecast(model2, h=5)
+print(value_CPEIFL)
+
+```
+
 
 
 ### Extracting the point forecasts values
@@ -240,8 +294,10 @@ point_forecasts_values <- as.numeric(point_forecasts_pec)
 point_forecasts_UNRATE <- value_UNRATE$mean
 point_forecasts_values_ <- as.numeric(point_forecasts_UNRATE) 
 
+point_forecasts_CPEIFL <- value_CPEIFL$mean
+point_forecasts_values_1 <- as.numeric(point_forecasts_CPEIFL) 
 # Create a new data frame and add the new point forecast values to ts_data
-new_rows <- cbind(c(0,0,0,0),point_forecasts_values_, point_forecasts_values)
+new_rows <- cbind(c(0,0,0,0,0),point_forecasts_values_, point_forecasts_values,point_forecasts_values_1)
 
 new_data_frame <- rbind(ts_data, new_rows)
 ```
@@ -250,19 +306,62 @@ new_data_frame <- rbind(ts_data, new_rows)
 # Forecasting
 ```{r}
 #Forecast for 4 periods
-forecast_values <- predict(final_model, n.ahead = 4, newdata=data.frame(new_data_frame))
-print(forecast_values)
+forecast_values <- predict(final_model, n.ahead = 5, newdata=data.frame(new_data_frame))
+#print(forecast_values)
+#str(forecast_values)
+
+forecast_values_gdpc1 <- as.numeric(forecast_values[264:268])
+future_dates <- seq(as.Date("2024-12-01"), as.Date("2025-12-01"), by = "quarter")
+
+quarter_year_labels <- paste0(format(future_dates, "%Y"), quarters(future_dates))
+
+# Combine the forecasted values, dates, and quarter-year labels into a data frame
+plot_data <- data.frame(Date = future_dates, Quarter_Year = quarter_year_labels, GDP = forecast_values_gdpc1)
+
+
+old_gdp_data <- df_select %>%
+  dplyr::select(sasdate, GDPC1) %>%
+  slice(259:n()) %>%
+  mutate(sasdate = as.Date(sasdate, format = "%Y-%d-%m")) %>%
+  mutate(quarter_year_labels = paste0(format(sasdate, "%Y"), "-Q", 
+                                      ceiling(as.numeric(format(sasdate, "%m")) / 3))) %>%
+  dplyr::select(1, 3, 2, everything())
+
 
 ```
 
 
-## Evaluating Our Model 
 ```{r}
-train_model_1 <- dynlm(train_data[,1] ~ L(train_data[,1], 1) + L(train_data[,1], 2) + L(train_data[,1], 3) + L(train_data[,1], 4) + L(train_data[,1], 5) + L(train_data[,1], 6) + L(train_data[,1], 7) + L(train_data[,1], 8) +L(train_data[,1], 9) +L(train_data[,1], 10) + L(train_data[,2], 1) + L(train_data[,2], 2) + L(train_data[,3], 1)+ L(train_data[,3], 2)+ L(train_data[,3], 3)+ L(train_data[,3], 4)+ L(train_data[,3], 5), data = train_data)
+ggplot(plot_data, aes(x = Quarter_Year, y = GDP, group = 1)) +
+  geom_line(color = "blue", size = 1) +
+  geom_point(color = "red", size = 2) + 
+  labs(title = "Forecasted GDP Trend", x = "Quarter-Year", y = "GDP") +
+  theme_minimal() +
+  scale_x_discrete(limits = quarter_year_labels)
+
+```
+```{r}
+# Simulate forecast quantiles
+set.seed(123)
+n_simulations <- 1000
+forecast_quantiles <- matrix(NA, nrow = 4, ncol = 9)  # 4 time steps, 9 quantiles (10th to 90th)
+
+for (i in 1:4) {
+  simulated_values <- rnorm(n_simulations, mean = forecast_values[i], sd = sd(residuals(final_model)))
+  forecast_quantiles[i, ] <- quantile(simulated_values, probs = seq(0.1, 0.9, by = 0.1))
+}
+
+# Create the fan chart
+plot.new()
+plot.window(xlim = c(1, 4), ylim = range(forecast_quantiles), xlab = "Time", ylab = "Forecast Values")
+fan(forecast_quantiles, start = 1, frequency = 1, 
+    fan.col = colorRampPalette(c("red", "yellow", "green")), 
+    ln = NULL, rlab = seq(0.1, 0.9, by = 0.1), rpos = 2)
 ```
 
+# Evaluating Our Model 
 ```{r}
-forecast_values <- predict(train_model_1, newdata = data.frame(test_data))
+forecast_values <- predict(final_model, newdata = data.frame(test_data))
 accuracy(forecast_values, test_data[,1])
 ```
 ```{r}
